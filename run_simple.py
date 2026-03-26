@@ -5,7 +5,7 @@ from datetime import datetime
 import os
 import re
 
-# 列名中英文对照表（不带单位后缀）
+# ==================== 1. 列名中英文对照表 ====================
 COLUMN_NAME_MAPPING = {
     'record_time': '记录时间',
     'tau': '动量通量',
@@ -64,112 +64,130 @@ COLUMN_NAME_MAPPING = {
     'reco_ustar': '生态系统呼吸',
 }
 
-# 异常值判定阈值 [min, max]
-ANOMALY_THRESHOLDS = {
-    'tau': [-2, 2],
-    'sonic_temperature': [-50, 50],
-    'air_temperature': [-50, 50],
-    'air_pressure': [50000, 110000],
-    'air_density': [0.5, 2.0],
-    'air_heat_capacity': [900, 1100],
-    'air_molar_volume': [0.020, 0.030],
-    'et': [-0.5, 1],
-    'water_vapor_density': [0, 0.1],
-    'e': [0, 10000],
-    'es': [0, 10000],
-    'specific_humidity': [0, 0.05],
+# ==================== 2. 逻辑阈值（基于生态学知识） ====================
+DOMAIN_THRESHOLDS = {
+    'air_temperature': [-35, 45],
+    'sonic_temperature': [-35, 45],
+    'ta_1_1_1': [-35, 45],
+    'ta_1_2_1': [-35, 45],
+    'ts_1_1_1': [-30, 35],
+    'ts_1_2_1': [-30, 35],
+    'ts_1_3_1': [-30, 35],
+    'ts_1_4_1': [-30, 35],
+    'ts_1_5_1': [-30, 35],
+    'trn_1_1_1': [-40, 50],
+    'air_pressure': [70000, 100000],
     'rh': [0, 100],
-    'vpd': [-500, 5000],
-    'tdew': [-50, 40],
-    'wind_speed': [0, 35],
-    'wind_dir': [0, 360],
-    'u_': [0, 10],
-    'l': [-10000, 10000],
-    'v_var': [-50, 50],
-    'dew_point_mean': [-50, 40],
-    'lwin_1_1_1': [100, 500],
-    'lwout_1_1_1': [100, 500],
-    'ppfd_1_1_1': [0, 3000],
-    'p_rain_1_1_1': [0, 0.5],
-    'p_rain_1_2_1': [0, 0.5],
     'rh_1_1_1': [0, 100],
     'rh_1_2_1': [0, 100],
-    'rn_1_1_1': [-200, 1000],
-    'rlnet_1_1_1': [-200, 200],
-    'rsnet_1_1_1': [-200, 1000],
-    'r_uva_1_1_1': [0, 100],
-    'swc_1_1_1': [0, 1],
-    'swc_1_2_1': [0, 1],
-    'swc_1_3_1': [0, 1],
-    'swc_1_4_1': [0, 1],
-    'swc_1_5_1': [0, 1],
-    'swdif_1_1_1': [0, 1000],
-    'swin_1_1_1': [0, 1500],
-    'swout_1_1_1': [0, 1000],
-    'trn_1_1_1': [-50, 50],
-    'ts_1_1_1': [-40, 40],
-    'ts_1_2_1': [-40, 40],
-    'ts_1_3_1': [-40, 40],
-    'ts_1_4_1': [-40, 40],
-    'ts_1_5_1': [-40, 40],
-    'ta_1_1_1': [-50, 50],
-    'ta_1_2_1': [-50, 50],
-    'ws_1_1_1': [0, 35],
-    'ws_1_2_1': [0, 35],
-    'ppfd_1_1_2': [0, 3000],
+    'wind_speed': [0, 30],
+    'ws_1_1_1': [0, 30],
+    'ws_1_2_1': [0, 30],
+    'wind_dir': [0, 360],
+    'rn_1_1_1': [-150, 900],
+    'rsnet_1_1_1': [-100, 800],
+    'rlnet_1_1_1': [-150, 200],
+    'lwin_1_1_1': [150, 550],
+    'lwout_1_1_1': [200, 600],
+    'swin_1_1_1': [0, 1200],
+    'swout_1_1_1': [0, 400],
+    'swdif_1_1_1': [0, 400],
+    'r_uva_1_1_1': [0, 80],
+    'ppfd_1_1_1': [0, 2500],
+    'ppfd_1_1_2': [0, 2500],
+    'p_rain_1_1_1': [0, 0.3],
+    'p_rain_1_2_1': [0, 0.3],
+    'swc_1_1_1': [0.01, 0.8],
+    'swc_1_2_1': [0.01, 0.8],
+    'swc_1_3_1': [0.01, 0.8],
+    'swc_1_4_1': [0.01, 0.8],
+    'swc_1_5_1': [0.01, 0.8],
+    'e': [0, 8000],
+    'es': [0, 8000],
+    'vpd': [-500, 4000],
     'nee_ustar_f': [-50, 50],
-    'gpp_ustar_f': [-10, 60],
-    'reco_ustar': [-10, 50],
+    'gpp_ustar_f': [-5, 60],
+    'reco_ustar': [0, 40],
+    'tau': [-2, 2],
+    'et': [-0.5, 3],
+    'u_': [0, 2],
+    'l': [-10000, 10000],
+    'v_var': [-10, 30],
+    'tdew': [-40, 35],
+    'dew_point_mean': [-40, 35],
+    'air_density': [0.8, 1.5],
+    'air_heat_capacity': [950, 1050],
+    'air_molar_volume': [0.020, 0.035],
+    'water_vapor_density': [0, 0.03],
+    'specific_humidity': [0, 0.03],
 }
 
 
 def extract_base_name(col_name):
-    """从带单位的列名中提取基础列名"""
     match = re.match(r'^([a-zA-Z_0-9]+)', col_name)
-    if match:
-        return match.group(1)
-    return col_name
+    return match.group(1) if match else col_name
 
 
-def diagnose_column_vectorized(df, base_col, full_col_name):
-    """使用pandas向量化操作诊断列"""
+def calculate_modified_zscore(series):
+    """
+    计算Modified Z-score
+    Modified Z-score = 0.6745 * (x - median) / MAD
+    当|MoD Z-score| > 5.0 时认为是离群点
+    """
+    numeric_vals = pd.to_numeric(series, errors='coerce')
+    valid_vals = numeric_vals.dropna()
+    
+    if len(valid_vals) < 10:
+        return pd.Series([np.nan] * len(series), index=series.index)
+    
+    median = valid_vals.median()
+    mad = (valid_vals - median).abs().median()
+    
+    if mad == 0:
+        return pd.Series([np.nan] * len(series), index=series.index)
+    
+    modified_z = 0.6745 * (numeric_vals - median) / mad
+    return modified_z
+
+
+def diagnose_column_improved(df, base_col, full_col_name):
     anomaly_dates = []
-    
-    threshold = ANOMALY_THRESHOLDS.get(base_col, None)
     series = df[full_col_name]
+    times = pd.to_datetime(df['record_time'], errors='coerce')
+    numeric_values = pd.to_numeric(series, errors='coerce')
     
-    # 解析时间
-    try:
-        times = pd.to_datetime(df['record_time'])
-    except:
-        return anomaly_dates
+    # 1. 逻辑阈值检测
+    domain_threshold = DOMAIN_THRESHOLDS.get(base_col, None)
+    domain_violated = pd.Series([False] * len(series), index=series.index)
     
-    # 检查是否为缺失值
-    missing_mask = series.isna() | (series == '') | (series.astype(str).str.strip() == '')
-    
-    # 如果有阈值，检查异常值
-    if threshold is not None:
-        # 转换为数值
-        numeric_values = pd.to_numeric(series, errors='coerce')
-        
-        # 异常值：不是缺失但超出范围
-        anomaly_mask = (~missing_mask) & (
-            (numeric_values < threshold[0]) | (numeric_values > threshold[1])
+    if domain_threshold is not None:
+        valid_mask = ~(numeric_values.isna() | series.astype(str).str.strip().eq(''))
+        domain_violated = valid_mask & (
+            (numeric_values < domain_threshold[0]) | 
+            (numeric_values > domain_threshold[1])
         )
-        
-        if anomaly_mask.any():
-            anomaly_times = times[anomaly_mask]
-            anomaly_dates = [(t.year, t.month, t.day) for t in anomaly_times]
+    
+    # 2. Modified Z-score检测
+    modified_z = calculate_modified_zscore(numeric_values)
+    valid_for_z = ~(numeric_values.isna() | series.astype(str).str.strip().eq(''))
+    zscore_outlier = valid_for_z & (modified_z.abs() > 5.0)
+    
+    # 3. 组合判定
+    final_anomaly = domain_violated | zscore_outlier
+    
+    # 收集异常日期
+    anomaly_mask = final_anomaly & times.notna()
+    if anomaly_mask.any():
+        anomaly_times = times[anomaly_mask]
+        anomaly_dates = [(t.year, t.month, t.day) for t in anomaly_times]
     
     return anomaly_dates
 
 
 def format_output_ymd(dates_by_ymd):
-    """格式化输出：精确到年月日的异常日期"""
     if not dates_by_ymd:
         return None
     
-    # 按年-月分组
     year_month_days = {}
     for year, month, day in dates_by_ymd:
         key = (year, month)
@@ -195,14 +213,13 @@ def main():
     
     print("=" * 60)
     print("BEON百华山通量站数据诊断程序")
+    print("改进版：逻辑阈值 + Modified Z-score")
     print("=" * 60)
     print()
     
-    # 查找所有CSV文件
     csv_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.csv')]
     csv_files.sort()
     
-    # 读取并合并所有CSV
     dfs = []
     for f in csv_files:
         filepath = os.path.join(DATA_DIR, f)
@@ -210,12 +227,9 @@ def main():
         dfs.append(df)
         print(f"已读取: {f}, 行数: {len(df)}")
     
-    # 合并数据
     all_data = pd.concat(dfs, ignore_index=True)
     print(f"\n合并后总行数: {len(all_data)}")
-    print(f"原始列数: {len(all_data.columns)}")
     
-    # 建立列名映射
     column_mapping = {}
     for col in all_data.columns:
         base = extract_base_name(col)
@@ -226,7 +240,6 @@ def main():
     print(f"识别到 {len(column_mapping)} 个有效数据列")
     print()
     
-    # 存储报告内容 - 只存储有异常的指标
     report_lines = []
     report_lines.append("=" * 80)
     report_lines.append("BEON百华山通量站数据诊断报告")
@@ -235,26 +248,27 @@ def main():
     report_lines.append(f"总记录数: {len(all_data)}")
     report_lines.append("=" * 80)
     report_lines.append("")
+    report_lines.append("【检测方法】")
+    report_lines.append("  1. 逻辑阈值法：基于生态学知识制定各指标的物理/生物学合理范围")
+    report_lines.append("  2. Modified Z-score：统计方法，检测偏离中位数超过5.0倍MAD的离群点")
+    report_lines.append("  异常判定：逻辑阈值违规 OR |Modified Z-score| > 5.0")
+    report_lines.append("")
     report_lines.append("【各指标数据异常明细】（仅列出存在异常的指标）")
     report_lines.append("")
     
     anomaly_count = 0
     
-    # 遍历每列进行诊断
     for base_col in sorted(column_mapping.keys()):
         full_col_name, chinese_name = column_mapping[base_col]
         print(f"正在诊断: {chinese_name} ({base_col})...")
         
-        anomaly_dates = diagnose_column_vectorized(all_data, base_col, full_col_name)
+        anomaly_dates = diagnose_column_improved(all_data, base_col, full_col_name)
         
-        # 只输出有异常的指标
         if len(anomaly_dates) > 0:
             anomaly_count += 1
-            # 列标题
             report_lines.append(f"【{anomaly_count}、{chinese_name}】（{base_col}）")
             report_lines.append(f"  异常值数量: {len(anomaly_dates)}")
             
-            # 输出详细信息（精确到年月日）
             anomaly_output = format_output_ymd(anomaly_dates)
             if anomaly_output:
                 report_lines.append(f"  异常值日期：")
@@ -262,17 +276,12 @@ def main():
             
             report_lines.append("")
     
-    # 写入报告文件
     report_content = '\n'.join(report_lines)
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
         f.write(report_content)
     
     print(f"\n报告已生成: {OUTPUT_FILE}")
     print(f"共有 {anomaly_count} 个指标存在异常")
-    print("\n" + "=" * 60)
-    print("报告预览：")
-    print("=" * 60)
-    print(report_content[:3000])
     
     return report_content
 
