@@ -133,7 +133,6 @@ def extract_base_name(col_name):
 
 def diagnose_column_vectorized(df, base_col, full_col_name):
     """使用pandas向量化操作诊断列"""
-    missing_dates = []
     anomaly_dates = []
     
     threshold = ANOMALY_THRESHOLDS.get(base_col, None)
@@ -143,19 +142,14 @@ def diagnose_column_vectorized(df, base_col, full_col_name):
     try:
         times = pd.to_datetime(df['record_time'])
     except:
-        return missing_dates, anomaly_dates
+        return anomaly_dates
     
-    # 找出缺失值（NaN或空字符串）
+    # 检查是否为缺失值
     missing_mask = series.isna() | (series == '') | (series.astype(str).str.strip() == '')
-    
-    # 获取缺失值的日期
-    if missing_mask.any():
-        missing_times = times[missing_mask]
-        missing_dates = [(t.year, t.month, t.day) for t in missing_times]
     
     # 如果有阈值，检查异常值
     if threshold is not None:
-        # 转换为数值，非数值变为NaN
+        # 转换为数值
         numeric_values = pd.to_numeric(series, errors='coerce')
         
         # 异常值：不是缺失但超出范围
@@ -167,29 +161,30 @@ def diagnose_column_vectorized(df, base_col, full_col_name):
             anomaly_times = times[anomaly_mask]
             anomaly_dates = [(t.year, t.month, t.day) for t in anomaly_times]
     
-    return missing_dates, anomaly_dates
+    return anomaly_dates
 
 
-def format_output(dates_by_ymd):
-    """格式化输出：月份：日期列表"""
+def format_output_ymd(dates_by_ymd):
+    """格式化输出：精确到年月日的异常日期"""
     if not dates_by_ymd:
         return None
     
-    # 按月份分组
-    month_dates = {}
+    # 按年-月分组
+    year_month_days = {}
     for year, month, day in dates_by_ymd:
-        if month not in month_dates:
-            month_dates[month] = set()
-        month_dates[month].add(day)
+        key = (year, month)
+        if key not in year_month_days:
+            year_month_days[key] = set()
+        year_month_days[key].add(day)
     
-    if not month_dates:
+    if not year_month_days:
         return None
     
     result_parts = []
-    for month in sorted(month_dates.keys()):
-        days = sorted(list(month_dates[month]))
+    for (year, month) in sorted(year_month_days.keys()):
+        days = sorted(list(year_month_days[(year, month)]))
         days_str = '、'.join(map(str, days))
-        result_parts.append(f"{month}月：{days_str}")
+        result_parts.append(f"{year}年{month}月：{days_str}")
     
     return '\n'.join(result_parts)
 
@@ -231,7 +226,7 @@ def main():
     print(f"识别到 {len(column_mapping)} 个有效数据列")
     print()
     
-    # 存储报告内容
+    # 存储报告内容 - 只存储有异常的指标
     report_lines = []
     report_lines.append("=" * 80)
     report_lines.append("BEON百华山通量站数据诊断报告")
@@ -240,45 +235,32 @@ def main():
     report_lines.append(f"总记录数: {len(all_data)}")
     report_lines.append("=" * 80)
     report_lines.append("")
-    report_lines.append("【一、数据概览】")
-    report_lines.append(f"  - 数据列数: {len(column_mapping)}")
+    report_lines.append("【各指标数据异常明细】（仅列出存在异常的指标）")
     report_lines.append("")
-    report_lines.append("【二、各指标数据异常明细】")
-    report_lines.append("")
+    
+    anomaly_count = 0
     
     # 遍历每列进行诊断
     for base_col in sorted(column_mapping.keys()):
         full_col_name, chinese_name = column_mapping[base_col]
         print(f"正在诊断: {chinese_name} ({base_col})...")
         
-        missing_dates, anomaly_dates = diagnose_column_vectorized(all_data, base_col, full_col_name)
+        anomaly_dates = diagnose_column_vectorized(all_data, base_col, full_col_name)
         
-        # 列标题
-        report_lines.append(f"【{chinese_name}】（{base_col}）")
-        
-        # 统计信息
-        total_missing = len(missing_dates)
-        total_anomaly = len(anomaly_dates)
-        total_issues = total_missing + total_anomaly
-        
-        report_lines.append(f"  缺失值数量: {total_missing}  |  异常值数量: {total_anomaly}")
-        
-        if total_issues == 0:
-            report_lines.append("  [OK] 数据正常，无异常")
-        else:
-            if total_missing > 0:
-                missing_output = format_output(missing_dates)
-                if missing_output:
-                    report_lines.append(f"  缺失值日期：")
-                    report_lines.append(f"  {missing_output}")
+        # 只输出有异常的指标
+        if len(anomaly_dates) > 0:
+            anomaly_count += 1
+            # 列标题
+            report_lines.append(f"【{anomaly_count}、{chinese_name}】（{base_col}）")
+            report_lines.append(f"  异常值数量: {len(anomaly_dates)}")
             
-            if total_anomaly > 0:
-                anomaly_output = format_output(anomaly_dates)
-                if anomaly_output:
-                    report_lines.append(f"  异常值日期：")
-                    report_lines.append(f"  {anomaly_output}")
-        
-        report_lines.append("")
+            # 输出详细信息（精确到年月日）
+            anomaly_output = format_output_ymd(anomaly_dates)
+            if anomaly_output:
+                report_lines.append(f"  异常值日期：")
+                report_lines.append(f"  {anomaly_output}")
+            
+            report_lines.append("")
     
     # 写入报告文件
     report_content = '\n'.join(report_lines)
@@ -286,11 +268,11 @@ def main():
         f.write(report_content)
     
     print(f"\n报告已生成: {OUTPUT_FILE}")
+    print(f"共有 {anomaly_count} 个指标存在异常")
     print("\n" + "=" * 60)
-    print("报告预览（前80行）：")
+    print("报告预览：")
     print("=" * 60)
-    for line in report_lines[:80]:
-        print(line)
+    print(report_content[:3000])
     
     return report_content
 
